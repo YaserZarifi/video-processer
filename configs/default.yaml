@@ -1,3 +1,11 @@
+# branding:
+#   enabled: true
+#   text_format: "Season {season} - Episode {episode} - Part {part}"
+
+
+# Persian :
+
 branding:
   enabled: true
-  text_format: "Season {season} - Episode {episode} - Part {part}"
+  text_format: "{season} - قسمت {episode} - پارت {part}"
+  logo_path: "input/logo.png"

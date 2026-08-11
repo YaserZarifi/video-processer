@@ -1,0 +1,3 @@
+branding:
+  enabled: true
+  text_format: "Season {season} - Episode {episode} - Part {part}"

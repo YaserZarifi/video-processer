@@ -12,20 +12,21 @@ def convert_to_vertical(
     target_width: int = 1080,
     target_height: int = 1920,
     blur_sigma: int = 20,
+    branding_text: str = "",
 ) -> str:
-    """
-    Convert a horizontal video into a vertical 9:16 video:
-    a blurred, cropped-to-fill background with the original
-    video centered on top at full width.
-    """
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
     filter_complex = (
         f"[0:v]scale={target_width}:{target_height}:force_original_aspect_ratio=increase,"
         f"crop={target_width}:{target_height},gblur=sigma={blur_sigma}[bg];"
         f"[0:v]scale={target_width}:-2[fg];"
-        f"[bg][fg]overlay=(W-w)/2:(H-h)/2[out]"
+        f"[bg][fg]overlay=(W-w)/2:(H-h)/2"
     )
+
+    if branding_text:
+        filter_complex += f"[merged];[merged]drawtext=text='{branding_text}':fontcolor=white:fontsize=50:x=(w-text_w)/2:y=200:box=1:boxcolor=black@0.6:boxborderw=15[out]"
+    else:
+        filter_complex += "[out]"
 
     cmd = [
         "ffmpeg", "-y",
@@ -53,7 +54,9 @@ if __name__ == "__main__":
     import sys
 
     input_path = sys.argv[1]
-    output_path = sys.argv[2] if len(sys.argv) > 2 else "output/vertical/vertical_test.mp4"
+    output_path = sys.argv[2] if len(sys.argv) > 2 else "output/vertical/vertical_test_branded.mp4"
 
-    convert_to_vertical(input_path, output_path)
+    test_text = "Season 1 - Episode 1 - Part 20"
+
+    convert_to_vertical(input_path, output_path, branding_text=test_text)
     print(f"Created: {output_path}")

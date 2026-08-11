@@ -1,23 +1,34 @@
 import logging
+import yaml
+from pathlib import Path
 from .prober import probe_video
 from .cutpoints import detect_silences, compute_cut_points
 from .splitter import split_video
+from .vertical import convert_to_vertical
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def load_config(config_path: str = "configs/default.yaml") -> dict:
+    try:
+        with open(config_path, "r") as f:
+            return yaml.safe_load(f)
+    except FileNotFoundError:
+        return {}
 
 def run_pipeline(
     input_path: str,
     output_dir: str,
+    vertical_dir: str,
     filename_prefix: str = "chunk",
+    season: str = "1",
+    episode: str = "1",
 ) -> list[str]:
-    """
-    Run the full raw-chunking pipeline on a single input video:
-    probe -> detect silences -> compute cut points -> split.
+    config = load_config()
+    branding_config = config.get("branding", {})
+    branding_enabled = branding_config.get("enabled", False)
+    branding_template = branding_config.get("text_format", "")
 
-    Returns list of output chunk file paths, in order.
-    """
     logger.info(f"Probing {input_path}...")
     info = probe_video(input_path)
     logger.info(
@@ -35,19 +46,42 @@ def run_pipeline(
     logger.info(f"Computed {len(chunks)} chunks")
 
     logger.info(f"Splitting into '{output_dir}'...")
-    output_paths = split_video(input_path, chunks, output_dir, filename_prefix)
-    logger.info(f"Done. Created {len(output_paths)} chunk files.")
+    raw_paths = split_video(input_path, chunks, output_dir, filename_prefix)
+    logger.info(f"Done. Created {len(raw_paths)} raw chunk files.")
 
-    return output_paths
+    logger.info("Starting vertical conversion phase...")
+    vertical_paths = []
+    for index, raw_path in enumerate(raw_paths):
+        part_number = index + 1
+        out_name = Path(raw_path).stem + "_vertical.mp4"
+        out_path = str(Path(vertical_dir) / out_name)
 
+        current_text = ""
+        if branding_enabled and branding_template:
+            current_text = branding_template.replace("{season}", season).replace("{episode}", episode).replace("{part}", str(part_number))
+
+        logger.info(f"Converting chunk {part_number}/{len(raw_paths)} to vertical...")
+        final_path = convert_to_vertical(
+            input_path=raw_path,
+            output_path=out_path,
+            branding_text=current_text
+        )
+        vertical_paths.append(final_path)
+
+    logger.info("Pipeline complete!")
+    return vertical_paths
 
 if __name__ == "__main__":
     import sys
 
     input_path = sys.argv[1]
-    output_dir = sys.argv[2] if len(sys.argv) > 2 else "output/raw_chunks"
+    raw_dir = "output/raw_chunks"
+    vert_dir = "output/vertical"
 
-    paths = run_pipeline(input_path, output_dir)
-    print(f"\nCreated {len(paths)} chunks:")
+    season_input = input("Enter Season number: ")
+    episode_input = input("Enter Episode number: ")
+
+    paths = run_pipeline(input_path, raw_dir, vert_dir, season=season_input, episode=episode_input)
+    print(f"\nCreated {len(paths)} final vertical shorts:")
     for p in paths:
         print(f"  {p}")

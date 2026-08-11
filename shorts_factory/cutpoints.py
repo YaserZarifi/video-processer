@@ -35,7 +35,7 @@ def detect_silences(path: str, noise_db: str = "-30dB", min_duration: float = 0.
 def compute_cut_points(
     duration: float,
     silences: list[tuple[float, float]],
-    max_chunk_duration: float = 60.0,
+    max_chunk_duration: float = 600.0,
     search_window: float = 10.0,
     safety_margin: float = 1.5,
 ) -> list[tuple[float, float]]:

@@ -62,17 +62,18 @@ def run_pipeline(
         if branding_enabled and branding_template:
             current_text = branding_template.replace("{season}", season).replace("{episode}", episode).replace("{part}", str(part_number))
 
-        logger.info(f"Transcribing chunk {part_number}...")
-        segments = transcribe_chunk(raw_path, model_size="small")
-        srt_path = str(Path(vertical_dir) / (Path(raw_path).stem + ".srt"))
-        create_srt(segments, srt_path)
+        # logger.info(f"Transcribing chunk {part_number}...")
+        # segments = transcribe_chunk(raw_path, model_size="small")
+        # srt_path = str(Path(vertical_dir) / (Path(raw_path).stem + ".srt"))
+        # create_srt(segments, srt_path)
 
         logger.info(f"Converting chunk {part_number}/{len(raw_paths)} to vertical with subtitles...")
         final_path = convert_to_vertical(
             input_path=raw_path,
             output_path=out_path,
             branding_text=current_text,
-            subtitle_path=srt_path
+            # subtitle_path=srt_path
+            subtitle_path=""
         )
         vertical_paths.append(final_path)
 

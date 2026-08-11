@@ -1,0 +1,60 @@
+import json
+import subprocess
+from pathlib import Path
+
+
+def probe_video(path: str) -> dict:
+    """
+    Run ffprobe on a video file and return key metadata.
+
+    Returns a dict with:
+        duration (float, seconds)
+        width (int)
+        height (int)
+        fps (float)
+        has_audio (bool)
+    Raises RuntimeError if ffprobe fails or file has no video stream.
+    """
+    if not Path(path).is_file():
+        raise FileNotFoundError(f"Video file not found: {path}")
+
+    cmd = [
+        "ffprobe", "-v", "quiet",
+        "-print_format", "json",
+        "-show_format", "-show_streams",
+        path,
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+
+    if result.returncode != 0:
+        raise RuntimeError(f"ffprobe failed for {path}: {result.stderr}")
+
+    data = json.loads(result.stdout)
+
+    video_stream = next(
+        (s for s in data["streams"] if s["codec_type"] == "video"), None
+    )
+    if video_stream is None:
+        raise RuntimeError(f"No video stream found in {path}")
+
+    audio_stream = next(
+        (s for s in data["streams"] if s["codec_type"] == "audio"), None
+    )
+
+    # r_frame_rate comes as a fraction string like "30/1"
+    num, den = video_stream["r_frame_rate"].split("/")
+    fps = float(num) / float(den)
+
+    return {
+        "duration": float(data["format"]["duration"]),
+        "width": int(video_stream["width"]),
+        "height": int(video_stream["height"]),
+        "fps": fps,
+        "has_audio": audio_stream is not None,
+    }
+
+
+if __name__ == "__main__":
+    import sys
+    result = probe_video(sys.argv[1])
+    print(json.dumps(result, indent=2))

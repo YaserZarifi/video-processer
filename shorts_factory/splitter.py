@@ -27,10 +27,13 @@ def split_video(
 
         cmd = [
             "ffmpeg", "-y",
-            "-ss", str(start),
             "-i", input_path,
+            "-ss", str(start),
             "-t", str(duration),
-            "-c", "copy",
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-crf", "20",
+            "-c:a", "aac",
             "-avoid_negative_ts", "make_zero",
             out_path,
         ]

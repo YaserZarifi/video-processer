@@ -37,17 +37,21 @@ def compute_cut_points(
     silences: list[tuple[float, float]],
     max_chunk_duration: float = 60.0,
     search_window: float = 10.0,
+    safety_margin: float = 1.5,
 ) -> list[tuple[float, float]]:
     """
     Given total duration and detected silences, compute a list of
     (start, end) chunk boundaries, preferring silence midpoints near
-    the max_chunk_duration mark over hard cuts.
+    the effective max mark over hard cuts. safety_margin shaves time
+    off max_chunk_duration so real output files (after ffmpeg's own
+    frame-boundary rounding) never sneak past the platform's hard cap.
     """
+    effective_max = max_chunk_duration - safety_margin
     chunks = []
     current_pos = 0.0
 
     while current_pos < duration:
-        target = current_pos + max_chunk_duration
+        target = current_pos + effective_max
 
         if target >= duration:
             # Last chunk — just go to the end

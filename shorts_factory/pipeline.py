@@ -39,12 +39,17 @@ def run_pipeline(
         f"{info['fps']:.2f} fps | has_audio={info['has_audio']}"
     )
 
+    chunking_config = config.get("chunking", {})
+    max_chunk_duration = float(chunking_config.get("chunk_length_minutes", 5)) * 60.0
+    max_size_mb = chunking_config.get("max_size_mb", 19)
+    logger.info(f"Chunk length cap: {max_chunk_duration:.0f}s | Output size target: {max_size_mb}MB each")
+
     logger.info("Detecting silences...")
     silences = detect_silences(input_path)
     logger.info(f"Found {len(silences)} silence windows")
 
     logger.info("Computing cut points...")
-    chunks = compute_cut_points(info["duration"], silences)
+    chunks = compute_cut_points(info["duration"], silences, max_chunk_duration=max_chunk_duration)
     logger.info(f"Computed {len(chunks)} chunks")
 
     logger.info(f"Splitting into '{output_dir}'...")
@@ -67,13 +72,17 @@ def run_pipeline(
         # srt_path = str(Path(vertical_dir) / (Path(raw_path).stem + ".srt"))
         # create_srt(segments, srt_path)
 
+        chunk_duration = chunks[index][1] - chunks[index][0]
+
         logger.info(f"Converting chunk {part_number}/{len(raw_paths)} to vertical with subtitles...")
         final_path = convert_to_vertical(
             input_path=raw_path,
             output_path=out_path,
             branding_text=current_text,
             # subtitle_path=srt_path
-            subtitle_path=""
+            subtitle_path="",
+            target_size_mb=max_size_mb,
+            duration=chunk_duration,
         )
         vertical_paths.append(final_path)
 

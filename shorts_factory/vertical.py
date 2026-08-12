@@ -86,8 +86,25 @@ def convert_to_vertical(
     branding_text: str = "",
     subtitle_path: str = "",
     logo_path: str = "",
+    target_size_mb: float = 0,
+    duration: float = 0,
+    audio_bitrate_kbps: int = 128,
 ) -> str:
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+
+    # If a size target + duration were given, compute the exact video
+    # bitrate budget so a two-pass encode lands right at target_size_mb
+    # (minus a small safety margin), instead of letting CRF float the size.
+    video_bitrate_kbps = None
+    if target_size_mb and duration:
+        safety_margin = 0.97  # leave ~3% headroom for container/muxing overhead
+        total_kbits = target_size_mb * 8 * 1024 * safety_margin
+        audio_kbits = audio_bitrate_kbps * duration
+        video_bitrate_kbps = max((total_kbits - audio_kbits) / duration, 150)
+        logger.info(
+            f"Targeting {target_size_mb}MB over {duration:.1f}s -> "
+            f"video bitrate ~{video_bitrate_kbps:.0f}kbps (two-pass)"
+        )
 
     filter_complex = (
         f"[0:v]scale={target_width}:{target_height}:force_original_aspect_ratio=increase,"
@@ -130,30 +147,72 @@ def convert_to_vertical(
 
     filter_complex += f";[{last_node}]null[out]"
 
-    cmd = [
-        "ffmpeg", "-y",
-        "-i", input_path,
-    ]
-
+    base_cmd = ["ffmpeg", "-y", "-i", input_path]
     if logo_path:
-        cmd.extend(["-i", logo_path])
+        base_cmd.extend(["-i", logo_path])
+    base_cmd.extend(["-filter_complex", filter_complex, "-map", "[out]"])
 
-    cmd.extend([
-        "-filter_complex", filter_complex,
-        "-map", "[out]",
-        "-map", "0:a?",
-        "-c:v", "libx264",
-        "-preset", "fast",
-        "-crf", "23",
-        "-c:a", "copy",
-        output_path,
-    ])
+    if video_bitrate_kbps:
+        # Two-pass CBR-ish encode: pass 1 analyzes complexity, pass 2 spends
+        # the exact bit budget where it helps quality most. This is what
+        # actually lands on target_size_mb — CRF alone can't guarantee a size.
+        passlogfile = str(Path(output_path).with_suffix(""))
+        maxrate = f"{int(video_bitrate_kbps * 1.5)}k"
+        bufsize = f"{int(video_bitrate_kbps * 2)}k"
 
-    logger.info(f"Converting {input_path} -> {output_path} (vertical {target_width}x{target_height})")
-    result = subprocess.run(cmd, capture_output=True, text=True)
+        pass1_cmd = base_cmd + [
+            "-map", "0:a?",
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-b:v", f"{video_bitrate_kbps:.0f}k",
+            "-maxrate", maxrate,
+            "-bufsize", bufsize,
+            "-pass", "1",
+            "-passlogfile", passlogfile,
+            "-an",
+            "-f", "mp4",
+            "-y", "/dev/null",
+        ]
+        logger.info(f"Pass 1/2 encoding {input_path}...")
+        result = subprocess.run(pass1_cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"ffmpeg pass 1 failed for {input_path}: {result.stderr}")
 
-    if result.returncode != 0:
-        raise RuntimeError(f"ffmpeg failed converting {input_path}: {result.stderr}")
+        pass2_cmd = base_cmd + [
+            "-map", "0:a?",
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-b:v", f"{video_bitrate_kbps:.0f}k",
+            "-maxrate", maxrate,
+            "-bufsize", bufsize,
+            "-pass", "2",
+            "-passlogfile", passlogfile,
+            "-c:a", "aac",
+            "-b:a", f"{audio_bitrate_kbps}k",
+            output_path,
+        ]
+        logger.info(f"Pass 2/2 encoding {input_path} -> {output_path}...")
+        result = subprocess.run(pass2_cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"ffmpeg pass 2 failed for {input_path}: {result.stderr}")
+
+        for leftover in Path(".").glob(f"{Path(passlogfile).name}-0.log*"):
+            leftover.unlink(missing_ok=True)
+    else:
+        # No size target given (e.g. called directly, like test_chunk.py) —
+        # fall back to the old single-pass CRF behavior.
+        cmd = base_cmd + [
+            "-map", "0:a?",
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-crf", "23",
+            "-c:a", "copy",
+            output_path,
+        ]
+        logger.info(f"Converting {input_path} -> {output_path} (vertical {target_width}x{target_height})")
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"ffmpeg failed converting {input_path}: {result.stderr}")
 
     return output_path
 

@@ -45,12 +45,23 @@ def probe_video(path: str) -> dict:
     num, den = video_stream["r_frame_rate"].split("/")
     fps = float(num) / float(den)
 
+    duration = float(data["format"]["duration"])
+    format_bit_rate = data["format"].get("bit_rate")
+    if format_bit_rate is not None:
+        bit_rate = float(format_bit_rate)
+    else:
+        # Some containers don't report an overall bitrate — estimate it
+        # from file size instead so downstream chunk-size logic still works.
+        file_size_bytes = Path(path).stat().st_size
+        bit_rate = (file_size_bytes * 8) / duration if duration > 0 else 0.0
+
     return {
-        "duration": float(data["format"]["duration"]),
+        "duration": duration,
         "width": int(video_stream["width"]),
         "height": int(video_stream["height"]),
         "fps": fps,
         "has_audio": audio_stream is not None,
+        "bit_rate": bit_rate,
     }
 
 

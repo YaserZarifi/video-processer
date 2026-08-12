@@ -1,3 +1,7 @@
+chunking:
+  chunk_length_minutes: 3
+  max_size_mb: 19
+
 # branding:
 #   enabled: true
 #   text_format: "Season {season} - Episode {episode} - Part {part}"

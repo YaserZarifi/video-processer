@@ -72,17 +72,13 @@ def run_pipeline(
         # srt_path = str(Path(vertical_dir) / (Path(raw_path).stem + ".srt"))
         # create_srt(segments, srt_path)
 
-        chunk_duration = chunks[index][1] - chunks[index][0]
-
         logger.info(f"Converting chunk {part_number}/{len(raw_paths)} to vertical with subtitles...")
         final_path = convert_to_vertical(
             input_path=raw_path,
             output_path=out_path,
             branding_text=current_text,
             # subtitle_path=srt_path
-            subtitle_path="",
-            target_size_mb=max_size_mb,
-            duration=chunk_duration,
+            subtitle_path=""
         )
         vertical_paths.append(final_path)
 

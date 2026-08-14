@@ -1,6 +1,6 @@
 chunking:
-  chunk_length_minutes: 3
-  max_size_mb: 19
+  chunk_length_minutes: 5
+  # max_size_mb: 100
 
 # branding:
 #   enabled: true

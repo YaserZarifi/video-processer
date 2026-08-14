@@ -25,11 +25,13 @@ def run_pipeline(
     filename_prefix: str = "chunk",
     season: str = "1",
     episode: str = "1",
+    bottom_text: str = "",
 ) -> list[str]:
     config = load_config()
     branding_config = config.get("branding", {})
     branding_enabled = branding_config.get("enabled", False)
     branding_template = branding_config.get("text_format", "")
+    logo_path = branding_config.get("logo_path", "")
 
     logger.info(f"Probing {input_path}...")
     info = probe_video(input_path)
@@ -41,8 +43,7 @@ def run_pipeline(
 
     chunking_config = config.get("chunking", {})
     max_chunk_duration = float(chunking_config.get("chunk_length_minutes", 5)) * 60.0
-    max_size_mb = chunking_config.get("max_size_mb", 19)
-    logger.info(f"Chunk length cap: {max_chunk_duration:.0f}s | Output size target: {max_size_mb}MB each")
+    logger.info(f"Chunk length cap: {max_chunk_duration:.0f}s")
 
     logger.info("Detecting silences...")
     silences = detect_silences(input_path)
@@ -78,7 +79,9 @@ def run_pipeline(
             output_path=out_path,
             branding_text=current_text,
             # subtitle_path=srt_path
-            subtitle_path=""
+            subtitle_path="",
+            logo_path=logo_path,
+            bottom_text=bottom_text,
         )
         vertical_paths.append(final_path)
 
@@ -94,8 +97,9 @@ if __name__ == "__main__":
 
     season_input = input("Enter Season number: ")
     episode_input = input("Enter Episode number: ")
+    bottom_text_input = input("Enter text to show under the logo (leave empty for none): ")
 
-    paths = run_pipeline(input_path, raw_dir, vert_dir, season=season_input, episode=episode_input)
+    paths = run_pipeline(input_path, raw_dir, vert_dir, season=season_input, episode=episode_input, bottom_text=bottom_text_input)
     print(f"\nCreated {len(paths)} final vertical shorts:")
     for p in paths:
         print(f"  {p}")
